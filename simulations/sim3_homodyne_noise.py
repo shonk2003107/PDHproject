@@ -77,7 +77,6 @@ def main(show: bool) -> None:
     s_i = s_i[1:]
     s_phase_theory = gain**2 * dsp.delayed_self_homodyne_psd_theory(f, LINEWIDTH, n_delay / FS)
     s_shot = dsp.shot_noise_psd(RESPONSIVITY * (P_SIGNAL + P_LO))
-    f_d, s_demod = dsp.psd(demod[skip:-skip], FS, nperseg=2**15)
 
     # --- plots ---------------------------------------------------------------
     fig, axes = plt.subplots(3, 1, figsize=(10, 11))
