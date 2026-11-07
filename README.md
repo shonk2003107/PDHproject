@@ -1,25 +1,39 @@
 # PDHproject
 
-פרויקט גמר: סימולציה של נעילת לייזר למהוד Fabry-Perot בשיטת Pound-Drever-Hall (PDH) —
-התאמת מודים (Mode Matching), יציבות ותגובת המהוד, וגילוי הומודיין עם רעש פאזה.
+Final project: numerical simulations for laser locking to a Fabry-Perot cavity using the
+Pound-Drever-Hall (PDH) technique.
 
-## מבנה הפרויקט
+## Simulations
+
+1. **Gaussian beam propagation (mode matching with Thorlabs collimators).**
+   A 1550 nm beam leaves an FC/APC collimator (F220APC / F260APC / F280APC, waist from the datasheet
+   beam diameter), travels a distance d to a focusing lens f, and is refocused. Using the q parameter
+   and ABCD matrices, the script computes the new waist position z_out and radius w_out.
+2. **Fabry-Perot stability and characterization.**
+   From the five system parameters (ROC1, ROC2, R1, R2, L): g1, g2, TEM00 waist w0 and Rayleigh
+   range z_R, FSR, finesse and linewidth, plus transmission/reflection spectra from the Airy function.
+3. **Homodyne measurement of random phase noise.**
+   A field with random-walk phase noise (exponential autocorrelation → Lorentzian spectrum) is beaten
+   with a delayed copy of itself without a frequency shift. The Lorentzian FWHM of the beat spectrum is
+   extracted and plotted vs the delay τ, showing it settles at 2Δν once τ exceeds the coherence time τc.
+
+## Project structure
 
 ```
 PDHproject/
-├── src/                        # ליבה פיזיקלית/מתמטית בלבד (ללא גרפים)
-│   ├── optics_utils.py         # מטריצות ABCD, פרמטר q, חפיפת מודים, אופטימיזציית שתי עדשות
-│   ├── fabry_perot.py          # מחלקת FabryPerot: FSR, Finesse, יציבות, מצב עצמי, החזרה/מעבר, אות שגיאה PDH
-│   └── signal_dsp.py           # רעש פאזה (Wiener), הומודיין מאוזן, רעש שוט, ערבול, LPF, PSD
-├── simulations/                # סקריפטים להרצה
-│   ├── sim1_mode_matching.py   # בחירת זוג עדשות ומיקומן להתאמה למוד המהוד + סבולות
-│   ├── sim2_cavity_stability.py# דיאגרמת יציבות, waist ו-TMS מול L, תגובת המהוד ואות PDH
-│   └── sim3_homodyne_noise.py  # הומודיין עם רעש פאזה ורעש שוט, דמודולציה והשוואה לתאוריה
-├── data_out/                   # תוצרי הסימולציות (png/csv) — לא נשמר בגיט
+├── src/                        # Physics/math core only (no plotting)
+│   ├── optics_utils.py         # q parameter, ABCD matrices, collimator model, focusing a beam with a thin lens
+│   ├── fabry_perot.py          # FabryPerot class: g1/g2, w0, zR, FSR, finesse, linewidth, Airy T/R
+│   └── signal_dsp.py           # Random-walk phase noise, homodyne beat, PSD, Lorentzian fit, analytic beat spectrum
+├── simulations/                # Runnable scripts
+│   ├── sim1_mode_matching.py   # Simulation 1: z_out and w_out vs focal length and distance
+│   ├── sim2_cavity_stability.py# Simulation 2: cavity parameters and Airy transmission/reflection
+│   └── sim3_homodyne_noise.py  # Simulation 3: measured linewidth vs delay
+├── data_out/                   # Simulation outputs (png/csv) — not tracked in git
 └── requirements.txt
 ```
 
-## התקנה
+## Installation
 
 ```bash
 python -m venv .venv
@@ -31,14 +45,14 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-## הרצה
+## Running
 
-מתיקיית השורש של הפרויקט:
+From the project root:
 
 ```bash
 python simulations/sim1_mode_matching.py
 python simulations/sim2_cavity_stability.py
-python simulations/sim3_homodyne_noise.py --show   # --show פותח את חלון הגרף
+python simulations/sim3_homodyne_noise.py --show   # --show opens the plot window
 ```
 
-הגרפים וקבצי ה-CSV נשמרים ב-`data_out/`. הפרמטרים של כל סימולציה מוגדרים בראש הקובץ שלה.
+Plots and CSV files are saved to `data_out/`. Each simulation's parameters are defined at the top of its file.

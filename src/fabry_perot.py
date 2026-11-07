@@ -1,12 +1,13 @@
-"""Two-mirror Fabry-Perot cavity: figures of merit, field response and PDH error signal.
+"""Analytic model of a two-mirror Fabry-Perot cavity.
+
+Everything here is a closed-form expression of the five system parameters
+(ROC1, ROC2, R1, R2, L) plus the wavelength. Mirrors are lossless: T_i = 1 - R_i.
 
 Conventions
 -----------
-* R1, R2 are power reflectivities; mirrors are lossless unless `loss` is set
-  (t_i^2 = 1 - R_i - loss_i).
-* Detuning `df` is the laser frequency offset from a cavity resonance, in Hz.
-* Reflection coefficient (E. Black, Am. J. Phys. 69, 79 (2001), generalized to r1 != r2):
-      F(df) = (-r1 + (r1^2 + t1^2) r2 e^{i phi}) / (1 - r1 r2 e^{i phi}),  phi = 2 pi df / FSR
+* ROC > 0 for a concave mirror (seen from inside the cavity); np.inf for a flat mirror.
+* R1, R2 are power reflectivities.
+* Frequencies are in Hz; `df` is the laser detuning from a cavity resonance.
 """
 
 from __future__ import annotations
@@ -14,67 +15,20 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 import numpy as np
-from scipy.special import jv
-
-from .optics_utils import curved_mirror, eigenmode_q, free_space, system_matrix
 
 C_LIGHT = 299_792_458.0  # m/s
 
 
 @dataclass
 class FabryPerot:
-    length: float                 # mirror separation [m]
-    R1: float                     # input mirror power reflectivity
-    R2: float                     # end mirror power reflectivity
-    roc1: float = np.inf          # input mirror radius of curvature [m] (>0 concave)
-    roc2: float = np.inf          # end mirror radius of curvature [m]
-    wavelength: float = 1064e-9   # [m]
-    loss1: float = 0.0            # scatter/absorption loss of mirror 1 (power fraction)
-    loss2: float = 0.0            # scatter/absorption loss of mirror 2
+    roc1: float                  # mirror 1 radius of curvature [m]
+    roc2: float                  # mirror 2 radius of curvature [m]
+    R1: float                    # mirror 1 power reflectivity
+    R2: float                    # mirror 2 power reflectivity
+    length: float                # mirror separation L [m]
+    wavelength: float = 1550e-9  # [m]
 
-    # ----- mirror amplitudes -------------------------------------------------
-    @property
-    def r1(self) -> float:
-        return np.sqrt(self.R1)
-
-    @property
-    def r2(self) -> float:
-        return np.sqrt(self.R2)
-
-    @property
-    def t1(self) -> float:
-        return np.sqrt(1.0 - self.R1 - self.loss1)
-
-    @property
-    def t2(self) -> float:
-        return np.sqrt(1.0 - self.R2 - self.loss2)
-
-    # ----- longitudinal figures of merit ------------------------------------
-    @property
-    def fsr(self) -> float:
-        """Free spectral range [Hz]."""
-        return C_LIGHT / (2.0 * self.length)
-
-    @property
-    def finesse(self) -> float:
-        rr = self.r1 * self.r2
-        return np.pi * np.sqrt(rr) / (1.0 - rr)
-
-    @property
-    def linewidth(self) -> float:
-        """Full width at half maximum of the resonance [Hz]."""
-        return self.fsr / self.finesse
-
-    @property
-    def storage_time(self) -> float:
-        """Field amplitude decay time tau = 1 / (pi * FWHM) [s]."""
-        return 1.0 / (np.pi * self.linewidth)
-
-    @property
-    def quality_factor(self) -> float:
-        return (C_LIGHT / self.wavelength) / self.linewidth
-
-    # ----- transverse / stability -------------------------------------------
+    # ----- spatial: stability and TEM00 mode --------------------------------
     @property
     def g1(self) -> float:
         return 1.0 - self.length / self.roc1
@@ -84,108 +38,89 @@ class FabryPerot:
         return 1.0 - self.length / self.roc2
 
     @property
-    def g_product(self) -> float:
-        return self.g1 * self.g2
+    def is_stable(self) -> bool:
+        """Stability condition 0 < g1 g2 < 1."""
+        return 0.0 < self.g1 * self.g2 < 1.0
+
+    def waist(self) -> float:
+        """TEM00 waist radius w0 [m].
+
+        w0^2 = (L lambda / pi) * sqrt( g1 g2 (1 - g1 g2) / (g1 + g2 - 2 g1 g2)^2 )
+        """
+        if not self.is_stable:
+            raise ValueError(f"Cavity is not stable (g1*g2 = {self.g1 * self.g2:.4f})")
+        g1, g2 = self.g1, self.g2
+        w0_sq = (self.length * self.wavelength / np.pi) * np.sqrt(
+            g1 * g2 * (1.0 - g1 * g2) / (g1 + g2 - 2.0 * g1 * g2) ** 2)
+        return float(np.sqrt(w0_sq))
+
+    def waist_position(self) -> float:
+        """Distance of the waist from mirror 1 [m]: z1 = L g2 (1 - g1) / (g1 + g2 - 2 g1 g2)."""
+        g1, g2 = self.g1, self.g2
+        return float(self.length * g2 * (1.0 - g1) / (g1 + g2 - 2.0 * g1 * g2))
+
+    def rayleigh_range(self) -> float:
+        """z_R = pi w0^2 / lambda [m]."""
+        return np.pi * self.waist() ** 2 / self.wavelength
+
+    # ----- spectral ---------------------------------------------------------
+    @property
+    def fsr(self) -> float:
+        """Free spectral range c / 2L [Hz]."""
+        return C_LIGHT / (2.0 * self.length)
 
     @property
-    def is_stable(self) -> bool:
-        return 0.0 < self.g_product < 1.0
+    def r_eff(self) -> float:
+        """Effective round-trip amplitude factor sqrt(R1 R2)."""
+        return np.sqrt(self.R1 * self.R2)
 
-    def roundtrip_matrix(self) -> np.ndarray:
-        """Round-trip ABCD matrix starting at mirror 1, heading toward mirror 2."""
-        return system_matrix(
-            free_space(self.length),
-            curved_mirror(self.roc2),
-            free_space(self.length),
-            curved_mirror(self.roc1),
-        )
+    @property
+    def coefficient_of_finesse(self) -> float:
+        """F = 4 sqrt(R1 R2) / (1 - sqrt(R1 R2))^2 (the 'F' in the Airy function)."""
+        return 4.0 * self.r_eff / (1.0 - self.r_eff) ** 2
 
-    def eigenmode_q(self) -> complex:
-        """q of the cavity TEM00 mode at mirror 1 (propagating toward mirror 2)."""
-        return eigenmode_q(self.roundtrip_matrix())
+    @property
+    def finesse(self) -> float:
+        """Finesse = pi sqrt(F) / 2."""
+        return np.pi * np.sqrt(self.coefficient_of_finesse) / 2.0
 
-    def waist(self) -> tuple[float, float]:
-        """Analytic (w0, z1): waist radius and its distance from mirror 1."""
-        if not self.is_stable:
-            raise ValueError(f"Cavity is not stable (g1*g2 = {self.g_product:.4f})")
-        g1, g2, L, lam = self.g1, self.g2, self.length, self.wavelength
-        denom = g1 + g2 - 2.0 * g1 * g2
-        w0_sq = (L * lam / np.pi) * np.sqrt(g1 * g2 * (1.0 - g1 * g2) / denom**2)
-        z1 = L * g2 * (1.0 - g1) / denom
-        return float(np.sqrt(w0_sq)), float(z1)
+    @property
+    def linewidth(self) -> float:
+        """Resonance full width at half maximum, delta_nu = FSR / Finesse [Hz]."""
+        return self.fsr / self.finesse
 
-    def mirror_spot_sizes(self) -> tuple[float, float]:
-        """Beam radii on mirror 1 and mirror 2."""
-        g1, g2 = self.g1, self.g2
-        base = self.length * self.wavelength / np.pi
-        w1 = np.sqrt(base * np.sqrt(g2 / (g1 * (1.0 - g1 * g2))))
-        w2 = np.sqrt(base * np.sqrt(g1 / (g2 * (1.0 - g1 * g2))))
-        return float(w1), float(w2)
-
-    def transverse_mode_spacing(self) -> float:
-        """Frequency spacing between TEM_mn orders (m+n -> m+n+1) [Hz]."""
-        root = np.sqrt(self.g_product)
-        return self.fsr * np.arccos(np.sign(self.g1) * root) / np.pi
-
-    # ----- field response -------------------------------------------------
-    def _phase(self, df):
+    def round_trip_phase(self, df):
+        """delta = 2 pi df / FSR (round-trip phase relative to resonance)."""
         return 2.0 * np.pi * np.asarray(df) / self.fsr
 
-    def reflection(self, df):
-        """Complex amplitude reflection coefficient F(df)."""
-        e = np.exp(1j * self._phase(df))
-        r1, r2, t1 = self.r1, self.r2, self.t1
-        return (-r1 + (r1**2 + t1**2) * r2 * e) / (1.0 - r1 * r2 * e)
-
     def transmission(self, df):
-        """Complex amplitude transmission coefficient."""
-        phi = self._phase(df)
-        return self.t1 * self.t2 * np.exp(1j * phi / 2.0) / (1.0 - self.r1 * self.r2 * np.exp(1j * phi))
+        """Airy transmission T = T_max / (1 + F sin^2(delta / 2)).
 
-    def intracavity_gain(self, df):
-        """Circulating power / incident power."""
-        phi = self._phase(df)
-        return np.abs(self.t1 / (1.0 - self.r1 * self.r2 * np.exp(1j * phi))) ** 2
-
-    # ----- Pound-Drever-Hall -------------------------------------------------
-    def pdh_error_signal(self, df, mod_freq: float, beta: float, power: float = 1.0,
-                         demod_phase: float = np.pi / 2):
-        """PDH error signal after mixing and low-pass filtering [W].
-
-        eps = 2 sqrt(Pc Ps) [Re(chi) cos(theta) + Im(chi) sin(theta)],
-        chi = F(w) F*(w + W) - F*(w) F(w - W),
-        Pc = J0(beta)^2 P0, Ps = J1(beta)^2 P0.
-        demod_phase = pi/2 selects the dispersive quadrature used for locking.
+        T_max = (1 - R1)(1 - R2) / (1 - sqrt(R1 R2))^2  (= 1 for R1 = R2).
         """
-        df = np.asarray(df)
-        pc = jv(0, beta) ** 2 * power
-        ps = jv(1, beta) ** 2 * power
-        f0 = self.reflection(df)
-        chi = f0 * np.conj(self.reflection(df + mod_freq)) - np.conj(f0) * self.reflection(df - mod_freq)
-        return 2.0 * np.sqrt(pc * ps) * (chi.real * np.cos(demod_phase) + chi.imag * np.sin(demod_phase))
+        t_max = (1.0 - self.R1) * (1.0 - self.R2) / (1.0 - self.r_eff) ** 2
+        delta = self.round_trip_phase(df)
+        return t_max / (1.0 + self.coefficient_of_finesse * np.sin(delta / 2.0) ** 2)
 
-    def pdh_slope(self, mod_freq: float, beta: float, power: float = 1.0, demod_phase: float = np.pi / 2,
-                  step: float | None = None) -> float:
-        """Numerical slope dEps/d(df) at resonance [W/Hz]."""
-        h = step if step is not None else self.linewidth * 1e-4
-        e = self.pdh_error_signal(np.array([-h, h]), mod_freq, beta, power, demod_phase)
-        return float((e[1] - e[0]) / (2.0 * h))
+    def reflection(self, df):
+        """Reflection R = 1 - T (lossless mirrors)."""
+        return 1.0 - self.transmission(df)
 
     def summary(self) -> dict:
         out = {
-            "length_m": self.length,
-            "FSR_Hz": self.fsr,
-            "finesse": self.finesse,
-            "linewidth_FWHM_Hz": self.linewidth,
-            "storage_time_s": self.storage_time,
-            "Q": self.quality_factor,
             "g1": self.g1,
             "g2": self.g2,
-            "g1g2": self.g_product,
+            "g1*g2": self.g1 * self.g2,
             "stable": self.is_stable,
+            "FSR [Hz]": self.fsr,
+            "coefficient of finesse F": self.coefficient_of_finesse,
+            "finesse": self.finesse,
+            "linewidth FWHM [Hz]": self.linewidth,
         }
         if self.is_stable:
-            w0, z1 = self.waist()
-            out.update({"waist_m": w0, "waist_from_M1_m": z1,
-                        "TMS_Hz": self.transverse_mode_spacing()})
+            out.update({
+                "waist w0 [m]": self.waist(),
+                "waist from M1 [m]": self.waist_position(),
+                "Rayleigh range zR [m]": self.rayleigh_range(),
+            })
         return out
