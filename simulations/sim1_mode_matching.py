@@ -9,7 +9,7 @@ of free space and a thin lens, we compute:
 
 The ABCD result is cross-checked against the closed-form thin-lens waist formula.
 
-Run from the project root:  python simulations/sim1_mode_matching.py [--show]
+Run from the project root:  python simulations/sim1_mode_matching.py [--no-show]
 """
 
 import argparse
@@ -142,5 +142,5 @@ def main(show: bool) -> None:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--show", action="store_true", help="open the figure window")
-    main(parser.parse_args().show)
+    parser.add_argument("--no-show", action="store_true", help="only save the figure, do not open a window")
+    main(show=not parser.parse_args().no_show)

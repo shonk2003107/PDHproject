@@ -52,7 +52,7 @@ From the project root:
 ```bash
 python simulations/sim1_mode_matching.py
 python simulations/sim2_cavity_stability.py
-python simulations/sim3_homodyne_noise.py --show   # --show opens the plot window
+python simulations/sim3_homodyne_noise.py
 ```
 
-Plots and CSV files are saved to `data_out/`. Each simulation's parameters are defined at the top of its file.
+Each run opens the plot window and saves plots and CSV files to `data_out/` (add `--no-show` to only save). Each simulation's parameters are defined at the top of its file.

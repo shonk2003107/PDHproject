@@ -12,7 +12,7 @@ Measurement (delayed self-homodyne):
   4. Repeat for tau from ~0 to several tau_c: the measured FWHM settles at 2 dnu
      once tau exceeds the coherence time (the two copies become uncorrelated).
 
-Run from the project root:  python simulations/sim3_homodyne_noise.py [--show]
+Run from the project root:  python simulations/sim3_homodyne_noise.py [--no-show]
 """
 
 import argparse
@@ -144,5 +144,5 @@ def main(show: bool) -> None:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--show", action="store_true", help="open the figure window")
-    main(parser.parse_args().show)
+    parser.add_argument("--no-show", action="store_true", help="only save the figure, do not open a window")
+    main(show=not parser.parse_args().no_show)

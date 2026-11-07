@@ -7,7 +7,7 @@ from closed-form expressions:
   * plots    - transmission and reflection vs frequency from the Airy function
                T = T_max / (1 + F sin^2(delta / 2)),  R = 1 - T
 
-Run from the project root:  python simulations/sim2_cavity_stability.py [--show]
+Run from the project root:  python simulations/sim2_cavity_stability.py [--no-show]
 """
 
 import argparse
@@ -103,5 +103,5 @@ def main(show: bool) -> None:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--show", action="store_true", help="open the figure window")
-    main(parser.parse_args().show)
+    parser.add_argument("--no-show", action="store_true", help="only save the figure, do not open a window")
+    main(show=not parser.parse_args().no_show)
