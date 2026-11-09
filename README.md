@@ -12,6 +12,9 @@ Pound-Drever-Hall (PDH) technique.
 2. **Fabry-Perot stability and characterization.**
    From the five system parameters (ROC1, ROC2, R1, R2, L): g1, g2, TEM00 waist w0 and Rayleigh
    range z_R, FSR, finesse and linewidth, plus transmission/reflection spectra from the Airy function.
+   The mirror curvatures enter the spectrum through the Gouy phase: the TEM_mn resonances sit at
+   ν_{q,m,n} = (c/2L)[q + (m+n+1)/π · arccos(±√(g1 g2))], so ROC1/ROC2 set the transverse-mode spacing
+   while the FSR stays c/2L.
 3. **Homodyne measurement of random phase noise.**
    A field with random-walk phase noise (exponential autocorrelation → Lorentzian spectrum) is beaten
    with a delayed copy of itself without a frequency shift. The Lorentzian FWHM of the beat spectrum is
@@ -23,13 +26,13 @@ Pound-Drever-Hall (PDH) technique.
 PDHproject/
 ├── src/                        # Physics/math core only (no plotting)
 │   ├── optics_utils.py         # q parameter, ABCD matrices, collimator model, focusing a beam with a thin lens
-│   ├── fabry_perot.py          # FabryPerot class: g1/g2, w0, zR, FSR, finesse, linewidth, Airy T/R
+│   ├── fabry_perot.py          # FabryPerot class: g1/g2, w0, zR, FSR, finesse, linewidth, Gouy phase, TEM_mn resonances, Airy T/R
 │   └── signal_dsp.py           # Random-walk phase noise, homodyne beat, PSD, Lorentzian fit, analytic beat spectrum
 ├── simulations/                # Runnable scripts
 │   ├── sim1_mode_matching.py   # Simulation 1: z_out and w_out vs focal length and distance
 │   ├── sim2_cavity_stability.py# Simulation 2: cavity parameters and Airy transmission/reflection
 │   └── sim3_homodyne_noise.py  # Simulation 3: measured linewidth vs delay
-├── data_out/                   # Simulation outputs (png/csv) — not tracked in git
+├── data_out/                   # Simulation outputs (png/csv)
 └── requirements.txt
 ```
 

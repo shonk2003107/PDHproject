@@ -89,22 +89,66 @@ class FabryPerot:
         """Resonance full width at half maximum, delta_nu = FSR / Finesse [Hz]."""
         return self.fsr / self.finesse
 
-    def round_trip_phase(self, df):
-        """delta = 2 pi df / FSR (round-trip phase relative to resonance)."""
-        return 2.0 * np.pi * np.asarray(df) / self.fsr
+    # ----- resonance frequencies of TEM_mn modes (Gouy phase) ---------------
+    @property
+    def gouy_phase(self) -> float:
+        """One-way Gouy phase shift between the mirrors [rad].
 
-    def transmission(self, df):
-        """Airy transmission T = T_max / (1 + F sin^2(delta / 2)).
+        zeta = arccos(+-sqrt(g1 g2)), with the sign of g1 (g1 and g2 share a sign in a stable
+        cavity). Special cases:
+          plano-concave (ROC1 = inf, ROC2 = R): arccos(sqrt(1 - L/R))
+          symmetric     (ROC1 = ROC2 = R):     arccos(1 - L/R) = 2 arctan(L / 2 z_R)
+        """
+        if not self.is_stable:
+            raise ValueError(f"Cavity is not stable (g1*g2 = {self.g1 * self.g2:.4f})")
+        return float(np.arccos(np.sign(self.g1) * np.sqrt(self.g1 * self.g2)))
+
+    @property
+    def transverse_mode_spacing(self) -> float:
+        """Frequency step between transverse-mode orders m+n and m+n+1: FSR * zeta / pi [Hz]."""
+        return self.fsr * self.gouy_phase / np.pi
+
+    def resonance_frequency(self, q: int, m: int = 0, n: int = 0) -> float:
+        """Absolute resonance frequency of mode TEM_mn with longitudinal index q [Hz].
+
+        nu_{q,m,n} = (c / 2L) * [ q + (m + n + 1) / pi * arccos(+-sqrt(g1 g2)) ]
+
+        The Gouy term is the same for q and q+1, so nu_{q+1,m,n} - nu_{q,m,n} = c / 2L = FSR
+        for any ROC1, ROC2. The mirror curvature moves the resonances (and the TEM_mn modes
+        relative to TEM00), not their spacing.
+        """
+        return self.fsr * (q + (m + n + 1) * self.gouy_phase / np.pi)
+
+    def mode_offset(self, mode_order: int) -> float:
+        """Detuning of a TEM_mn resonance (m + n = mode_order) from the nearest-below TEM00
+        resonance, folded into [0, FSR) [Hz]."""
+        return float(np.mod(mode_order * self.transverse_mode_spacing, self.fsr))
+
+    def round_trip_phase(self, df, mode_order: int = 0):
+        """Round-trip phase relative to TEM00 resonance: delta = 2 pi df / FSR - 2 (m + n) zeta.
+
+        `df` is the detuning from a TEM00 resonance; mode_order = m + n selects the
+        transverse mode (0 = TEM00, where the Gouy term is only a constant offset).
+        """
+        delta = 2.0 * np.pi * np.asarray(df) / self.fsr
+        if mode_order:
+            delta = delta - 2.0 * mode_order * self.gouy_phase
+        return delta
+
+    def transmission(self, df, mode_order: int = 0):
+        """Airy transmission T = T_max / (1 + F sin^2(delta / 2)) of mode order m + n.
 
         T_max = (1 - R1)(1 - R2) / (1 - sqrt(R1 R2))^2  (= 1 for R1 = R2).
+        This is the transmission of a beam fully in that mode; the actual height of each
+        TEM_mn peak in an experiment depends on the mode matching.
         """
         t_max = (1.0 - self.R1) * (1.0 - self.R2) / (1.0 - self.r_eff) ** 2
-        delta = self.round_trip_phase(df)
+        delta = self.round_trip_phase(df, mode_order)
         return t_max / (1.0 + self.coefficient_of_finesse * np.sin(delta / 2.0) ** 2)
 
-    def reflection(self, df):
+    def reflection(self, df, mode_order: int = 0):
         """Reflection R = 1 - T (lossless mirrors)."""
-        return 1.0 - self.transmission(df)
+        return 1.0 - self.transmission(df, mode_order)
 
     def summary(self) -> dict:
         out = {
@@ -122,5 +166,7 @@ class FabryPerot:
                 "waist w0 [m]": self.waist(),
                 "waist from M1 [m]": self.waist_position(),
                 "Rayleigh range zR [m]": self.rayleigh_range(),
+                "Gouy phase [rad]": self.gouy_phase,
+                "transverse mode spacing [Hz]": self.transverse_mode_spacing,
             })
         return out

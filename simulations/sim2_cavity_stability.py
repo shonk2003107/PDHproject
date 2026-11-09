@@ -4,8 +4,13 @@ Inputs are the five system parameters ROC1, ROC2, R1, R2 and L. Everything is co
 from closed-form expressions:
   * spatial  - g1, g2, TEM00 waist w0 and its Rayleigh range z_R
   * spectral - free spectral range FSR, finesse and resonance linewidth (FWHM)
+  * modes    - resonance frequencies of the transverse modes TEM_mn,
+               nu_{q,m,n} = (c / 2L) [ q + (m + n + 1) / pi * arccos(+-sqrt(g1 g2)) ]
+               (plano-concave ROC1 = inf, ROC2 = R: arccos(sqrt(1 - L/R)); symmetric ROC1 = ROC2 = R:
+               arccos(1 - L/R)). The Gouy term cancels between q and
+               q + 1, so FSR = c / 2L for any ROC; the ROCs set where TEM_mn sits inside the FSR.
   * plots    - transmission and reflection vs frequency from the Airy function
-               T = T_max / (1 + F sin^2(delta / 2)),  R = 1 - T
+               T = T_max / (1 + F sin^2(delta / 2)),  R = 1 - T, and the TEM_mn resonances
 
 Run from the project root:  python simulations/sim2_cavity_stability.py [--no-show]
 """
@@ -32,6 +37,10 @@ R1 = 0.99           # mirror 1 power reflectivity
 R2 = 0.99           # mirror 2 power reflectivity
 L = 0.10            # mirror separation [m]
 WAVELENGTH = 1550e-9
+MAX_MODE_ORDER = 4  # highest transverse-mode order m + n shown in the mode plot
+
+# (ROC1, ROC2) pairs printed for comparison with the chosen cavity
+ROC_COMPARISON = [(0.5, 0.5), (0.5, 1.0), (1.0, 1.0), (0.25, np.inf)]
 
 
 def main(show: bool) -> None:
@@ -52,12 +61,37 @@ def main(show: bool) -> None:
     print(f"  finesse           = {cav.finesse:.1f}")
     print(f"  linewidth (FWHM)  = {cav.linewidth / 1e6:.3f} MHz")
 
+    if cav.is_stable:
+        q0 = int(round(2 * L / WAVELENGTH))  # longitudinal index of the TEM00 mode nearest the laser
+        nu00 = cav.resonance_frequency(q0)
+        print("Transverse modes (Gouy phase):")
+        print(f"  Gouy phase zeta   = arccos(+-sqrt(g1 g2)) = {cav.gouy_phase:.4f} rad")
+        print(f"  mode spacing      = FSR * zeta / pi = {cav.transverse_mode_spacing / 1e6:.2f} MHz")
+        print(f"  nu(q={q0}, 0, 0) = {nu00 / 1e12:.6f} THz")
+        print("  m+n | nu - nu(q,0,0) [MHz] | offset folded into one FSR [MHz]")
+        for order in range(MAX_MODE_ORDER + 1):
+            shift = cav.resonance_frequency(q0, order, 0) - nu00
+            print(f"  {order:3d} | {shift / 1e6:20.2f} | {cav.mode_offset(order) / 1e6:12.2f}")
+        print(f"  check: nu(q+1,0,0) - nu(q,0,0) = "
+              f"{(cav.resonance_frequency(q0 + 1) - nu00) / 1e9:.4f} GHz = FSR")
+
+    print("\nEffect of the mirror curvatures (same R1, R2, L):")
+    print("  ROC1 [m] | ROC2 [m] |  g1*g2 |  FSR [GHz] | zeta [rad] | mode spacing [MHz]")
+    for roc1, roc2 in ROC_COMPARISON:
+        c = FabryPerot(roc1=roc1, roc2=roc2, R1=R1, R2=R2, length=L, wavelength=WAVELENGTH)
+        if c.is_stable:
+            print(f"  {roc1:8.2f} | {roc2:8.2f} | {c.g1 * c.g2:6.3f} | {c.fsr / 1e9:10.4f} | "
+                  f"{c.gouy_phase:10.4f} | {c.transverse_mode_spacing / 1e6:18.2f}")
+        else:
+            print(f"  {roc1:8.2f} | {roc2:8.2f} | {c.g1 * c.g2:6.3f} | {c.fsr / 1e9:10.4f} | unstable")
+
     # --- Airy transmission / reflection --------------------------------------
     df = np.linspace(-1.5 * cav.fsr, 1.5 * cav.fsr, 60001)
     trans = cav.transmission(df)
     refl = cav.reflection(df)
 
-    fig, axes = plt.subplots(2, 1, figsize=(10, 9))
+    n_rows = 3 if cav.is_stable else 2
+    fig, axes = plt.subplots(n_rows, 1, figsize=(10, 4.5 * n_rows))
 
     ax = axes[0]
     ax.plot(df / 1e9, trans, label="transmission T")
@@ -87,6 +121,23 @@ def main(show: bool) -> None:
     ax.set_title("Zoom on one resonance")
     ax.legend(loc="center right")
     ax.grid(alpha=0.3)
+
+    # --- transverse modes TEM_mn inside one FSR --------------------------------
+    if cav.is_stable:
+        ax = axes[2]
+        span = np.linspace(-0.05 * cav.fsr, 1.05 * cav.fsr, 60001)
+        for order in range(MAX_MODE_ORDER + 1):
+            ax.plot(span / 1e9, cav.transmission(span, mode_order=order),
+                    label=f"m+n = {order}  (+{cav.mode_offset(order) / 1e6:.0f} MHz)")
+        ax.axvline(cav.fsr / 1e9, color="k", ls=":", lw=0.8)
+        ax.set_xlabel("frequency detuning from TEM00 resonance [GHz]")
+        ax.set_ylabel("transmission")
+        ax.set_title(f"TEM_mn resonances: ROC1 = {ROC1} m, ROC2 = {ROC2} m, "
+                     f"Gouy phase = {cav.gouy_phase:.3f} rad, "
+                     f"mode spacing = {cav.transverse_mode_spacing / 1e6:.1f} MHz\n"
+                     "(each mode drawn at full height; real peak heights depend on mode matching)")
+        ax.legend(loc="center right", fontsize=8)
+        ax.grid(alpha=0.3)
 
     fig.tight_layout()
     fig.savefig(OUT_DIR / "sim2_cavity_stability.png", dpi=150)
