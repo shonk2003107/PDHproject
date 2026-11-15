@@ -40,7 +40,8 @@ PDHproject/
 │   │   ├── sim_fiber_<L>m.py   # One script per fiber length: 500, 2000, 5000, 7000 m
 │   │   ├── PPCL550_laser_data.md             # PPCL550 laser settings and state (text) + screenshot
 │   │   └── ppcl550_settings_2026-11-15.png   # Pure Photonics GUI screenshot, 2026-11-15
-│   ├── sh_data.py              # Browse runs: list / show / open folder / copy new lab runs in
+│   ├── sh_linewidth.py         # LAB measurement: drives the ESA + scope, writes runs into data_measured/
+│   ├── sh_data.py              # Browse runs: list / show / open folder / copy older runs from the PyCharm folder
 │   └── data_measured/          # ALL data: lab runs delay_XXXXXm/<timestamp>/ + simulations <timestamp>_sim/
 │                               #   summary.csv = lab, summary_sim.csv = simulations
 └── requirements.txt
@@ -64,10 +65,23 @@ python self_heterodyne/simulations/sim_fiber_7000m.py --note "..."
 ```
 
 All data is in one place, `self_heterodyne/data_measured/`. Each simulation run creates a new folder
-`delay_XXXXXm/<YYYY-MM-DD_HH-MM-SS>_sim/` next to the lab runs of the same fiber length. The lab
-runs (`delay_XXXXXm/<YYYY-MM-DD_HH-MM-SS>/`, written by `sh_linewidth.py --delay L`) are copied in
-from the lab data folder. Every run folder holds the CSV and PNG of each ESA trace, plus `results.csv`,
-`metadata.json` and `run.log`.
+`delay_XXXXXm/<YYYY-MM-DD_HH-MM-SS>_sim/` next to the lab runs of the same fiber length. Every run
+folder holds the CSV and PNG of each ESA trace, plus `results.csv`, `metadata.json` and `run.log`.
+
+### Lab measurement
+
+`self_heterodyne/sh_linewidth.py` drives the Keysight N9010B ESA and DSOX1204G scope (needs `pyvisa`
+and the instruments on USB). Each run writes `data_measured/delay_XXXXXm/<YYYY-MM-DD_HH-MM-SS>/` and
+appends to `data_measured/summary.csv`. Runs made earlier with the PyCharm copy of the script were
+copied in with `sh_data.py copy --all`.
+
+```bash
+cd self_heterodyne
+python sh_linewidth.py --check                       # verify instrument connections
+python sh_linewidth.py --monitor                     # live beat power, for polarization alignment
+python sh_linewidth.py --delay 5000 --note "5000 m spool, laser PPCL550, Plaser 14dBm, 10 dB att, whisper on"
+python sh_linewidth.py --delay 2000 --simulate       # offline test, no instruments (writes a run folder too)
+```
 
 ### Accessing run data
 
@@ -78,7 +92,7 @@ python self_heterodyne/sh_data.py list --kind lab       # only measurements (--k
 python self_heterodyne/sh_data.py show 5000 --kind lab  # latest 5 km measurement: results + file list
 python self_heterodyne/sh_data.py show 5000 --run 2026-11-12_16-51-43
 python self_heterodyne/sh_data.py open 5000             # open the folder in Explorer
-python self_heterodyne/sh_data.py copy --all            # bring new lab runs (and summary.csv) into data_measured/
+python self_heterodyne/sh_data.py copy --all            # bring runs from the old PyCharm lab folder (merges summary.csv)
 ```
 
 In Python (from `self_heterodyne/`): `from dsh import runs; run = runs.find_run(runs.DATA_ROOT, 5000, kind="lab")`,

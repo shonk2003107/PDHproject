@@ -1,7 +1,8 @@
 """Access to DSH run folders (lab measurements and simulations share the same layout).
 
-Everything lives in one place: self_heterodyne/data_measured/ holds the lab runs (copied from the
-lab script's data folder) and the simulation runs (folder name ends with _sim).
+Everything lives in one place: self_heterodyne/data_measured/ holds the lab runs (written directly by
+self_heterodyne/sh_linewidth.py; older ones copied from the PyCharm project) and the simulation runs
+(folder name ends with _sim).
 
 Layout (written by the lab script sh_linewidth.py --delay L, and by the simulations here):
 
@@ -42,7 +43,7 @@ from pathlib import Path
 import numpy as np
 
 SH_ROOT = Path(__file__).resolve().parents[1]
-LAB_DATA_ROOT = Path(r"C:\Users\Owner\PycharmProjects\WelcomeScreen\data")   # data folder of sh_linewidth.py
+LAB_DATA_ROOT = Path(r"C:\Users\Owner\PycharmProjects\WelcomeScreen\data")   # old data folder (PyCharm copy of sh_linewidth.py)
 DATA_ROOT = SH_ROOT / "data_measured"     # the project's single data folder: copied lab runs + simulations
 SIM_SUFFIX = "_sim"                       # simulation run folders: <timestamp>_sim
 

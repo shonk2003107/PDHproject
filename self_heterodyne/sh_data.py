@@ -1,7 +1,7 @@
 """Browse DSH run folders and take data out of them.
 
 All data lives in one place: self_heterodyne/data_measured/
-    delay_XXXXXm/<YYYY-MM-DD_HH-MM-SS>/       lab measurement (copied from the lab script's data folder)
+    delay_XXXXXm/<YYYY-MM-DD_HH-MM-SS>/       lab measurement (sh_linewidth.py writes here directly)
     delay_XXXXXm/<YYYY-MM-DD_HH-MM-SS>_sim/   simulation (sim_fiber_<L>m.py writes here directly)
 Each run folder has the ESA CSV + PNG of every trace, results.csv, metadata.json and run.log.
 
@@ -15,10 +15,10 @@ Run from the project root:
     python self_heterodyne/sh_data.py show 5000 --kind lab  # latest 5 km measurement
     python self_heterodyne/sh_data.py show 5000 --run 2026-11-12_16-51-43
     python self_heterodyne/sh_data.py open 5000             # open the folder in Explorer
-    python self_heterodyne/sh_data.py copy --all            # bring new lab runs into data_measured/
-    python self_heterodyne/sh_data.py copy 5000             # bring the latest lab 5 km run
+    python self_heterodyne/sh_data.py copy --all            # bring runs from the old PyCharm lab folder
+    python self_heterodyne/sh_data.py copy 5000             # the latest 5 km run from the old PyCharm lab folder
 
-'copy' always reads from the lab data folder:  C:\\Users\\Owner\\PycharmProjects\\WelcomeScreen\\data
+'copy' brings in older runs from the old lab data folder in the PyCharm project:  C:\\Users\\Owner\\PycharmProjects\\WelcomeScreen\\data
 Use --source lab to browse that folder directly, or --root PATH for any other folder.
 """
 
@@ -134,16 +134,31 @@ def do_copy(run: runs.Run, overwrite: bool) -> bool:
         return False
 
 
+def merge_summary(src: Path, dest: Path) -> int:
+    """Append the rows of src that dest does not have yet. Never overwrites: sh_linewidth.py in
+    this project appends its own rows to dest directly. Returns the number of rows added."""
+    if not src.exists():
+        return 0
+    if not dest.exists():
+        shutil.copy2(src, dest)
+        return max(len(src.read_text(encoding="utf-8").splitlines()) - 1, 0)
+    have = set(dest.read_text(encoding="utf-8").splitlines())
+    new = [ln for ln in src.read_text(encoding="utf-8").splitlines()[1:] if ln and ln not in have]
+    if new:
+        text = dest.read_text(encoding="utf-8")
+        with open(dest, "a", encoding="utf-8", newline="") as fh:
+            fh.write(("" if text.endswith("\n") else "\n") + "\n".join(new) + "\n")
+    return len(new)
+
+
 def copy_all(overwrite: bool) -> None:
-    """Copy every lab run not yet in data_measured, and refresh the lab summary.csv
-    (measurements only - the simulations write to summary_sim.csv)."""
+    """Copy every run from the old lab folder that is not yet in data_measured, and merge the lab
+    summary.csv rows into ours (measurements only - the simulations write to summary_sim.csv)."""
     lab = runs.list_runs(runs.LAB_DATA_ROOT)
     copied = sum(do_copy(r, overwrite) for r in lab)
     print(f"{copied} new run(s) copied, {len(lab) - copied} already in {runs.DATA_ROOT}")
-    summary = runs.LAB_DATA_ROOT / "summary.csv"
-    if summary.exists():
-        shutil.copy2(summary, runs.DATA_ROOT / "summary.csv")
-        print("summary.csv updated from the lab")
+    added = merge_summary(runs.LAB_DATA_ROOT / "summary.csv", runs.DATA_ROOT / "summary.csv")
+    print(f"summary.csv: {added} new row(s) merged from the lab folder")
 
 
 # ---------------------------------------------------------------------------
