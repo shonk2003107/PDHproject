@@ -1,0 +1,127 @@
+{
+  "delay_m": 7000,
+  "tau_us": 34.281716319894876,
+  "note": "simulation 7000 m",
+  "simulated": true,
+  "started": "2026-11-15T14:25:12",
+  "finished": "2026-11-15T14:25:14",
+  "repeats": 3,
+  "seed": 3182324972,
+  "config": {
+    "laser_linewidth_hz": 52000.0,
+    "aom_freq_hz": 80000000.0,
+    "fiber_group_index": 1.4682,
+    "beat_power_dbm": -23.0,
+    "noise_floor_dbm_hz": -145.0,
+    "sweep_noise": 0.3,
+    "beat_offset_hz": 0.0,
+    "peak_search_window_hz": 1000000.0,
+    "center_mask_rbw": 4,
+    "esa_spans": [
+      {
+        "name": "wide",
+        "span_hz": 5000000.0,
+        "rbw_hz": 5100.0,
+        "points": 1001,
+        "averages": 20
+      },
+      {
+        "name": "narrow",
+        "span_hz": 200000.0,
+        "rbw_hz": 200,
+        "points": 1001,
+        "averages": 20
+      },
+      {
+        "name": "ultra_wide",
+        "span_hz": 20000000.0,
+        "rbw_hz": 20000.0,
+        "points": 1001,
+        "averages": 20
+      }
+    ]
+  },
+  "traces": [
+    {
+      "file": "esa_wide_r01.csv",
+      "span_name": "wide",
+      "repeat": 1,
+      "rbw_hz": 5100.0,
+      "span_hz": 5000000.0,
+      "points": 1001,
+      "averages": 20
+    },
+    {
+      "file": "esa_narrow_r01.csv",
+      "span_name": "narrow",
+      "repeat": 1,
+      "rbw_hz": 200,
+      "span_hz": 200000.0,
+      "points": 1001,
+      "averages": 20
+    },
+    {
+      "file": "esa_ultra_wide_r01.csv",
+      "span_name": "ultra_wide",
+      "repeat": 1,
+      "rbw_hz": 20000.0,
+      "span_hz": 20000000.0,
+      "points": 1001,
+      "averages": 20
+    },
+    {
+      "file": "esa_wide_r02.csv",
+      "span_name": "wide",
+      "repeat": 2,
+      "rbw_hz": 5100.0,
+      "span_hz": 5000000.0,
+      "points": 1001,
+      "averages": 20
+    },
+    {
+      "file": "esa_narrow_r02.csv",
+      "span_name": "narrow",
+      "repeat": 2,
+      "rbw_hz": 200,
+      "span_hz": 200000.0,
+      "points": 1001,
+      "averages": 20
+    },
+    {
+      "file": "esa_ultra_wide_r02.csv",
+      "span_name": "ultra_wide",
+      "repeat": 2,
+      "rbw_hz": 20000.0,
+      "span_hz": 20000000.0,
+      "points": 1001,
+      "averages": 20
+    },
+    {
+      "file": "esa_wide_r03.csv",
+      "span_name": "wide",
+      "repeat": 3,
+      "rbw_hz": 5100.0,
+      "span_hz": 5000000.0,
+      "points": 1001,
+      "averages": 20
+    },
+    {
+      "file": "esa_narrow_r03.csv",
+      "span_name": "narrow",
+      "repeat": 3,
+      "rbw_hz": 200,
+      "span_hz": 200000.0,
+      "points": 1001,
+      "averages": 20
+    },
+    {
+      "file": "esa_ultra_wide_r03.csv",
+      "span_name": "ultra_wide",
+      "repeat": 3,
+      "rbw_hz": 20000.0,
+      "span_hz": 20000000.0,
+      "points": 1001,
+      "averages": 20
+    }
+  ]
+}
