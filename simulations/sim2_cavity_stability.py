@@ -9,6 +9,10 @@ from closed-form expressions:
                (plano-concave ROC1 = inf, ROC2 = R: arccos(sqrt(1 - L/R)); symmetric ROC1 = ROC2 = R:
                arccos(1 - L/R)). The Gouy term cancels between q and
                q + 1, so FSR = c / 2L for any ROC; the ROCs set where TEM_mn sits inside the FSR.
+  * matching - fraction of the input power coupled into each mode order m + n, from the overlap
+               of the input Gaussian beam (waist size/position error, lateral offset, tilt) with the
+               cavity Hermite-Gauss modes. The peak heights in the mode spectrum are P_(m+n) * T_max,
+               the way a transmission photodiode on the scope sees them while the laser is scanned.
   * plots    - transmission and reflection vs frequency from the Airy function
                T = T_max / (1 + F sin^2(delta / 2)),  R = 1 - T, and the TEM_mn resonances
 
@@ -26,7 +30,9 @@ sys.path.insert(0, str(ROOT))
 import matplotlib.pyplot as plt  # noqa: E402
 import numpy as np  # noqa: E402
 
+from simulations import sim1_mode_matching as sim1  # noqa: E402
 from src.fabry_perot import FabryPerot  # noqa: E402
+from src.optics_utils import focus_beam  # noqa: E402
 
 OUT_DIR = ROOT / "data_out"
 
@@ -39,7 +45,21 @@ R1 = 0.99           # mirror 1 power reflectivity
 R2 = 0.99           # mirror 2 power reflectivity
 L = 10e-3           # mirror separation [m]
 WAVELENGTH = 1550e-9
-MAX_MODE_ORDER = 4  # highest transverse-mode order m + n shown in the mode plot
+MAX_MODE_ORDER = 6  # highest transverse-mode order m + n shown in the mode plot
+
+# Input beam, given at the cavity waist (on the flat mirror M1). Sets the TEM_mn peak heights.
+# Its waist comes from simulation 1: collimator -> d = 100 mm -> lens f = 200 mm, focused on M1
+# (z_out = f). The offset and tilt are a typical residual misalignment before fine-tuning the
+# XYZ stage.
+COLLIMATOR = "F280APC-1550"   # the lab collimator (one of sim1.COLLIMATORS)
+_col = next(c for c in sim1.COLLIMATORS if c.name == COLLIMATOR)
+INPUT_WAIST = float(focus_beam(_col.waist, sim1.WAVELENGTH, sim1.LENS_DISTANCE,
+                               sim1.EXAMPLE_FOCAL_MM * 1e-3)[1])   # input beam waist radius [m]
+INPUT_WAIST_OFFSET = 1e-3   # input waist position relative to the cavity waist [m]
+INPUT_OFFSET_X = 15e-6      # lateral displacement of the input beam [m]
+INPUT_OFFSET_Y = 0.0
+INPUT_TILT_X = 2e-3         # input beam angle to the cavity axis [rad]
+INPUT_TILT_Y = 0.0
 
 # (ROC1, ROC2) pairs printed for comparison with the chosen cavity (same L = 10 mm)
 ROC_COMPARISON = [(np.inf, 15e-3), (np.inf, 25e-3), (np.inf, 50e-3), (15e-3, 15e-3), (np.inf, 10e-3)]
@@ -69,17 +89,32 @@ def main(show: bool) -> None:
     print(f"  finesse           = {cav.finesse:.1f}")
     print(f"  linewidth (FWHM)  = {cav.linewidth / 1e6:.3f} MHz")
 
+    coupling = None
     if cav.is_stable:
+        coupling = cav.mode_coupling(INPUT_WAIST, INPUT_WAIST_OFFSET, INPUT_OFFSET_X, INPUT_OFFSET_Y,
+                                     INPUT_TILT_X, INPUT_TILT_Y, max_order=MAX_MODE_ORDER)
         q0 = int(round(2 * L / WAVELENGTH))  # longitudinal index of the TEM00 mode nearest the laser
         nu00 = cav.resonance_frequency(q0)
         print("Transverse modes (Gouy phase):")
         print(f"  Gouy phase zeta   = arccos(+-sqrt(g1 g2)) = {cav.gouy_phase:.4f} rad")
         print(f"  mode spacing      = FSR * zeta / pi = {cav.transverse_mode_spacing / 1e6:.2f} MHz")
         print(f"  nu(q={q0}, 0, 0) = {nu00 / 1e12:.6f} THz")
-        print("  m+n | nu - nu(q,0,0) [MHz] | offset folded into one FSR [MHz]")
+        print("Mode matching (input beam at the cavity waist):")
+        print(f"  input beam: {COLLIMATOR} -> d = {sim1.LENS_DISTANCE * 1e3:.0f} mm -> "
+              f"lens f = {sim1.EXAMPLE_FOCAL_MM} mm -> focus on M1 (z_out = f)")
+        print(f"  w_in = {INPUT_WAIST * 1e6:.1f} um (cavity w0 = {cav.waist() * 1e6:.1f} um), "
+              f"waist offset = {INPUT_WAIST_OFFSET * 1e3:g} mm, "
+              f"offset = ({INPUT_OFFSET_X * 1e6:g}, {INPUT_OFFSET_Y * 1e6:g}) um, "
+              f"tilt = ({INPUT_TILT_X * 1e3:g}, {INPUT_TILT_Y * 1e3:g}) mrad")
+        print("  m+n | nu - nu(q,0,0) [MHz] | folded into one FSR [MHz] | to nearest TEM00 [MHz] | "
+              "coupled power")
         for order in range(MAX_MODE_ORDER + 1):
             shift = cav.resonance_frequency(q0, order, 0) - nu00
-            print(f"  {order:3d} | {shift / 1e6:20.2f} | {cav.mode_offset(order) / 1e6:12.2f}")
+            folded = cav.mode_offset(order)
+            nearest = min(folded, cav.fsr - folded)
+            print(f"  {order:3d} | {shift / 1e6:20.2f} | {folded / 1e6:25.2f} | {nearest / 1e6:22.2f} | "
+                  f"{100 * coupling[order]:7.3f} %")
+        print(f"  power above order {MAX_MODE_ORDER}: {100 * (1 - coupling.sum()):.3f} %")
         print(f"  check: nu(q+1,0,0) - nu(q,0,0) = "
               f"{(cav.resonance_frequency(q0 + 1) - nu00) / 1e9:.4f} GHz = FSR")
 
@@ -131,22 +166,48 @@ def main(show: bool) -> None:
     ax.legend(loc="center right")
     ax.grid(alpha=0.3)
 
-    # --- transverse modes TEM_mn inside one FSR --------------------------------
+    # --- transverse modes TEM_mn inside one FSR, weighted by the mode matching -----
+    # Each order m+n is drawn at height P_(m+n) * T_max: what a transmission photodiode
+    # shows while the laser is scanned across one FSR.
     if cav.is_stable:
-        ax = axes[2]
         span = np.linspace(-0.05 * cav.fsr, 1.05 * cav.fsr, 60001)
+        mode_traces = np.array([coupling[order] * cav.transmission(span, mode_order=order)
+                                for order in range(MAX_MODE_ORDER + 1)])
+        total = mode_traces.sum(axis=0)
+        mismatch_text = (f"input w = {INPUT_WAIST * 1e6:.0f} um vs w0 = {cav.waist() * 1e6:.0f} um, "
+                         f"waist offset {INPUT_WAIST_OFFSET * 1e3:g} mm, "
+                         f"offset {np.hypot(INPUT_OFFSET_X, INPUT_OFFSET_Y) * 1e6:g} um, "
+                         f"tilt {np.hypot(INPUT_TILT_X, INPUT_TILT_Y) * 1e3:g} mrad")
+
+        ax = axes[2]
+        ax.plot(span / 1e9, total, color="k", lw=0.6, alpha=0.5, label="total (scope trace)")
         for order in range(MAX_MODE_ORDER + 1):
-            ax.plot(span / 1e9, cav.transmission(span, mode_order=order),
-                    label=f"m+n = {order}  (+{cav.mode_offset(order) / 1e6:.0f} MHz)")
+            ax.plot(span / 1e9, mode_traces[order], color=f"C{order}",
+                    lw=2.0 if order == 0 else 1.2,
+                    label=f"m+n = {order}: {100 * coupling[order]:.2f} %  "
+                          f"(+{cav.mode_offset(order) / 1e6:.0f} MHz)")
         ax.axvline(cav.fsr / 1e9, color="k", ls=":", lw=0.8)
         ax.set_xlabel("frequency detuning from TEM00 resonance [GHz]")
         ax.set_ylabel("transmission")
+        ax.set_ylim(0, 1.05)
+        ax.grid(alpha=0.3)
         ax.set_title(f"TEM_mn resonances: ROC1 = {fmt_roc(ROC1)}, ROC2 = {fmt_roc(ROC2)}, "
                      f"Gouy phase = {cav.gouy_phase:.3f} rad, "
                      f"mode spacing = {cav.transverse_mode_spacing / 1e6:.1f} MHz\n"
-                     "(each mode drawn at full height; real peak heights depend on mode matching)")
-        ax.legend(loc="center right", fontsize=8)
-        ax.grid(alpha=0.3)
+                     f"peak heights from mode matching: {mismatch_text}", fontsize=10)
+        for order in range(MAX_MODE_ORDER + 1):
+            if coupling[order] > 0.005:
+                x_peak = cav.mode_offset(order) / 1e9
+                for x in {x_peak, x_peak + cav.fsr / 1e9 if order == 0 else x_peak}:
+                    ax.text(x, coupling[order] + 0.02, f"{100 * coupling[order]:.1f} %",
+                            ha="center", color=f"C{order}", fontsize=9)
+        ax.legend(loc="upper center", fontsize=8, ncol=2)
+
+        # every 4th point (~1.1 MHz step, well below the linewidth) keeps the file small
+        np.savetxt(OUT_DIR / "sim2_mode_spectrum.csv",
+                   np.column_stack([span, total, mode_traces.T])[::4], delimiter=",", fmt="%.6g",
+                   header=",".join(["detuning_Hz", "total"] + [f"order_{o}" for o in range(MAX_MODE_ORDER + 1)]),
+                   comments="")
 
     fig.tight_layout()
     fig.savefig(OUT_DIR / "sim2_cavity_stability.png", dpi=150)

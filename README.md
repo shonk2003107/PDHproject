@@ -9,13 +9,18 @@ Pound-Drever-Hall (PDH) technique.
    A 1550 nm beam leaves an FC/APC collimator (F220APC / F260APC / F280APC, waist from the datasheet
    beam diameter), travels a distance d to a focusing lens f, and is refocused. Using the q parameter
    and ABCD matrices, the script computes the new waist position z_out and radius w_out.
-2. **Fabry-Perot stability and characterization.**
+   A second figure, `sim1_schematic.png`, is a not-to-scale schematic of the system with every
+   parameter (w_in, D, z_R, d, f, z_out, w_out, z'_R, θ', R(z)) and the q-parameter formulas.2. **Fabry-Perot stability and characterization.**
    From the five system parameters (ROC1, ROC2, R1, R2, L): g1, g2, TEM00 waist w0 and Rayleigh
    range z_R, FSR, finesse and linewidth, plus transmission/reflection spectra from the Airy function.
    The mirror curvatures enter the spectrum through the Gouy phase: the TEM_mn resonances sit at
    ν_{q,m,n} = (c/2L)[q + (m+n+1)/π · arccos(±√(g1 g2))], so ROC1/ROC2 set the transverse-mode spacing
    while the FSR stays c/2L. The lab cavity is half-symmetric (plano-concave): M1 flat, M2 with
    ROC = 15 mm, L = 10 mm → g1 = 1, g2 = 1/3, w0 ≈ 59 µm on the flat mirror, FSR ≈ 15 GHz.
+   The height of each TEM_mn peak is the power coupled into it, from the overlap of the input
+   Gaussian beam (waist size and position, lateral offset, tilt) with the cavity Hermite-Gauss modes.
+   This is the spectrum a transmission photodiode shows while the laser is scanned
+   (`data_out/sim2_mode_spectrum.csv`).
 3. **Homodyne measurement of random phase noise.**
    A field with random-walk phase noise (exponential autocorrelation → Lorentzian spectrum) is beaten
    with a delayed copy of itself without a frequency shift. The Lorentzian FWHM of the beat spectrum is
@@ -122,6 +127,7 @@ From the project root:
 python simulations/sim1_mode_matching.py
 python simulations/sim2_cavity_stability.py
 python simulations/sim3_homodyne_noise.py
+python simulations/sim4_system_layout.py   # full path: fiber -> collimator -> lens -> cavity, w(z) + all parameters
 ```
 
 Each run opens the plot window and saves plots and CSV files to `data_out/` (add `--no-show` to only save). Each simulation's parameters are defined at the top of its file.

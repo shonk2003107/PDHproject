@@ -150,6 +150,57 @@ class FabryPerot:
         """Reflection R = 1 - T (lossless mirrors)."""
         return 1.0 - self.transmission(df, mode_order)
 
+    # ----- mode matching: power coupled into each TEM_mn ----------------------
+    def mode_coupling(self, w_in: float, waist_offset: float = 0.0, offset_x: float = 0.0,
+                      offset_y: float = 0.0, tilt_x: float = 0.0, tilt_y: float = 0.0,
+                      max_order: int = 10) -> np.ndarray:
+        """Fraction of the input power coupled into each TEM_mn mode of the cavity.
+
+        The input is a TEM00 Gaussian beam, described in the plane of the cavity waist:
+          w_in          its own waist radius [m]
+          waist_offset  where its waist sits along the axis, relative to the cavity waist [m]
+                        (> 0: further into the cavity)
+          offset_x/y    lateral displacement of its axis [m]
+          tilt_x/y      angle of its axis relative to the cavity axis [rad]
+
+        c_mn = <u_mn | E_in> is the overlap integral with the cavity Hermite-Gauss mode
+        u_mn(x, y) = u_m(x) u_n(y). Both are separable, so c_mn = c_m^(x) c_n^(y), and
+        P_mn = |c_mn|^2. Waist-size and waist-position errors feed only even orders (2, 4, ...);
+        displacement and tilt feed odd orders as well.
+
+        Returns P[N] = sum of P_mn over m + n = N, for N = 0 .. max_order. Sum(P) <= 1; the
+        remainder sits in orders above max_order.
+        """
+        w0 = self.waist()
+        k = 2.0 * np.pi / self.wavelength
+        z_r_in = np.pi * w_in ** 2 / self.wavelength
+        q_in = -waist_offset + 1j * z_r_in       # input q parameter in the cavity-waist plane
+
+        n_terms = max_order + 1
+        half = 10.0 * max(w0, w_in) + 3.0 * max(abs(offset_x), abs(offset_y))
+        x = np.linspace(-half, half, 8001)
+        dx = x[1] - x[0]
+
+        # Normalized cavity Hermite-Gauss functions at the waist (real, flat phase), by the
+        # stable three-term recursion of the Hermite functions.
+        xi = np.sqrt(2.0) * x / w0
+        u = np.empty((n_terms, x.size))
+        u[0] = (2.0 / (np.pi * w0 ** 2)) ** 0.25 * np.exp(-xi ** 2 / 2.0)
+        if n_terms > 1:
+            u[1] = np.sqrt(2.0) * xi * u[0]
+        for m in range(1, n_terms - 1):
+            u[m + 1] = np.sqrt(2.0 / (m + 1)) * xi * u[m] - np.sqrt(m / (m + 1)) * u[m - 1]
+
+        def coupling_1d(offset: float, tilt: float) -> np.ndarray:
+            field = np.exp(-1j * k * (x - offset) ** 2 / (2.0 * q_in) + 1j * k * tilt * x)
+            field /= np.sqrt(np.sum(np.abs(field) ** 2) * dx)
+            return np.abs(u @ field * dx) ** 2          # |c_m|^2, m = 0 .. max_order
+
+        px = coupling_1d(offset_x, tilt_x)
+        py = coupling_1d(offset_y, tilt_y)
+        p_mn = np.outer(px, py)
+        return np.array([sum(p_mn[m, order - m] for m in range(order + 1)) for order in range(n_terms)])
+
     def summary(self) -> dict:
         out = {
             "g1": self.g1,
