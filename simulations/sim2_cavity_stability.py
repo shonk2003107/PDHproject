@@ -31,23 +31,31 @@ from src.fabry_perot import FabryPerot  # noqa: E402
 OUT_DIR = ROOT / "data_out"
 
 # ----------------------------- parameters ---------------------------------
-ROC1 = 0.5          # mirror 1 radius of curvature [m] (np.inf = flat)
-ROC2 = 0.5          # mirror 2 radius of curvature [m]
+# Half-symmetric (plano-concave) cavity: M1 flat, M2 concave with ROC = 15 mm, L = 10 mm.
+# g1 = 1, g2 = 1 - L/ROC2 = 1/3 -> stable; the TEM00 waist sits on the flat mirror M1.
+ROC1 = np.inf       # mirror 1 radius of curvature [m] (np.inf = flat)
+ROC2 = 15e-3        # mirror 2 radius of curvature [m]
 R1 = 0.99           # mirror 1 power reflectivity
 R2 = 0.99           # mirror 2 power reflectivity
-L = 0.10            # mirror separation [m]
+L = 10e-3           # mirror separation [m]
 WAVELENGTH = 1550e-9
 MAX_MODE_ORDER = 4  # highest transverse-mode order m + n shown in the mode plot
 
-# (ROC1, ROC2) pairs printed for comparison with the chosen cavity
-ROC_COMPARISON = [(0.5, 0.5), (0.5, 1.0), (1.0, 1.0), (0.25, np.inf)]
+# (ROC1, ROC2) pairs printed for comparison with the chosen cavity (same L = 10 mm)
+ROC_COMPARISON = [(np.inf, 15e-3), (np.inf, 25e-3), (np.inf, 50e-3), (15e-3, 15e-3), (np.inf, 10e-3)]
+
+
+def fmt_roc(roc: float) -> str:
+    """Radius of curvature as text in mm ('flat' for np.inf)."""
+    return "flat" if np.isinf(roc) else f"{roc * 1e3:g} mm"
 
 
 def main(show: bool) -> None:
     OUT_DIR.mkdir(exist_ok=True)
     cav = FabryPerot(roc1=ROC1, roc2=ROC2, R1=R1, R2=R2, length=L, wavelength=WAVELENGTH)
 
-    print(f"Inputs: ROC1 = {ROC1} m, ROC2 = {ROC2} m, R1 = {R1}, R2 = {R2}, L = {L} m\n")
+    print(f"Inputs: ROC1 = {fmt_roc(ROC1)}, ROC2 = {fmt_roc(ROC2)}, R1 = {R1}, R2 = {R2}, "
+          f"L = {L * 1e3:g} mm\n")
     print("Spatial (TEM00):")
     print(f"  g1 = {cav.g1:.4f}, g2 = {cav.g2:.4f}, g1*g2 = {cav.g1 * cav.g2:.4f} -> "
           f"{'stable' if cav.is_stable else 'UNSTABLE'}")
@@ -76,14 +84,15 @@ def main(show: bool) -> None:
               f"{(cav.resonance_frequency(q0 + 1) - nu00) / 1e9:.4f} GHz = FSR")
 
     print("\nEffect of the mirror curvatures (same R1, R2, L):")
-    print("  ROC1 [m] | ROC2 [m] |  g1*g2 |  FSR [GHz] | zeta [rad] | mode spacing [MHz]")
+    print("      ROC1 |      ROC2 |  g1*g2 |  FSR [GHz] | zeta [rad] | mode spacing [MHz]")
     for roc1, roc2 in ROC_COMPARISON:
         c = FabryPerot(roc1=roc1, roc2=roc2, R1=R1, R2=R2, length=L, wavelength=WAVELENGTH)
         if c.is_stable:
-            print(f"  {roc1:8.2f} | {roc2:8.2f} | {c.g1 * c.g2:6.3f} | {c.fsr / 1e9:10.4f} | "
+            print(f"  {fmt_roc(roc1):>8} | {fmt_roc(roc2):>9} | {c.g1 * c.g2:6.3f} | {c.fsr / 1e9:10.4f} | "
                   f"{c.gouy_phase:10.4f} | {c.transverse_mode_spacing / 1e6:18.2f}")
         else:
-            print(f"  {roc1:8.2f} | {roc2:8.2f} | {c.g1 * c.g2:6.3f} | {c.fsr / 1e9:10.4f} | unstable")
+            print(f"  {fmt_roc(roc1):>8} | {fmt_roc(roc2):>9} | {c.g1 * c.g2:6.3f} | {c.fsr / 1e9:10.4f} | "
+                  "unstable (needs 0 < g1*g2 < 1)")
 
     # --- Airy transmission / reflection --------------------------------------
     df = np.linspace(-1.5 * cav.fsr, 1.5 * cav.fsr, 60001)
@@ -132,7 +141,7 @@ def main(show: bool) -> None:
         ax.axvline(cav.fsr / 1e9, color="k", ls=":", lw=0.8)
         ax.set_xlabel("frequency detuning from TEM00 resonance [GHz]")
         ax.set_ylabel("transmission")
-        ax.set_title(f"TEM_mn resonances: ROC1 = {ROC1} m, ROC2 = {ROC2} m, "
+        ax.set_title(f"TEM_mn resonances: ROC1 = {fmt_roc(ROC1)}, ROC2 = {fmt_roc(ROC2)}, "
                      f"Gouy phase = {cav.gouy_phase:.3f} rad, "
                      f"mode spacing = {cav.transverse_mode_spacing / 1e6:.1f} MHz\n"
                      "(each mode drawn at full height; real peak heights depend on mode matching)")

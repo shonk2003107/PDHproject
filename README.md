@@ -14,7 +14,8 @@ Pound-Drever-Hall (PDH) technique.
    range z_R, FSR, finesse and linewidth, plus transmission/reflection spectra from the Airy function.
    The mirror curvatures enter the spectrum through the Gouy phase: the TEM_mn resonances sit at
    ν_{q,m,n} = (c/2L)[q + (m+n+1)/π · arccos(±√(g1 g2))], so ROC1/ROC2 set the transverse-mode spacing
-   while the FSR stays c/2L.
+   while the FSR stays c/2L. The lab cavity is half-symmetric (plano-concave): M1 flat, M2 with
+   ROC = 15 mm, L = 10 mm → g1 = 1, g2 = 1/3, w0 ≈ 59 µm on the flat mirror, FSR ≈ 15 GHz.
 3. **Homodyne measurement of random phase noise.**
    A field with random-walk phase noise (exponential autocorrelation → Lorentzian spectrum) is beaten
    with a delayed copy of itself without a frequency shift. The Lorentzian FWHM of the beat spectrum is
